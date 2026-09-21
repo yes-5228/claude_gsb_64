@@ -9,7 +9,7 @@ from ..domain.constants import (
     PERIOD_LABELS,
     STATION_TYPE_LABELS,
 )
-from ..domain.standards import POLLUTANT_CODES, get_pollutant
+from ..domain.standards import POLLUTANTS, POLLUTANT_CODES, get_pollutant
 from ..errors import ValidationError
 from ..extensions import db
 from ..models import Exceedance, Measurement, Station
@@ -164,7 +164,13 @@ def measurement_query(args):
 
 
 def summary(filters):
-    """Aggregate counters shown above the query result table."""
+    """Aggregate counters shown above the query result table.
+
+    ``avg_value`` is only meaningful inside a single unit: when the filter spans
+    pollutants with different units (e.g. CO mg/m³ alongside μg/m³ factors) it is
+    returned as None with ``value_comparable=False``, instead of mixing scales
+    into one misleading number. ``unit`` echoes the unit when it is unique.
+    """
     query = apply_filters(
         db.session.query(
             func.count(Measurement.id),
@@ -179,6 +185,10 @@ def summary(filters):
     total, exceeded, stations, first_at, last_at, avg_value = query.one()
     total = int(total or 0)
     exceeded = int(exceeded or 0)
+
+    units = _units_in_scope(filters)
+    comparable = len(units) == 1
+    precision = _precision_for_units(units)
     return {
         "total": total,
         "exceeded_count": exceeded,
@@ -186,8 +196,29 @@ def summary(filters):
         "station_count": int(stations or 0),
         "first_measured_at": iso(first_at),
         "last_measured_at": iso(last_at),
-        "avg_value": round(float(avg_value), 2) if avg_value is not None else None,
+        "avg_value": round(float(avg_value), precision) if avg_value is not None and comparable else None,
+        "unit": next(iter(units)) if comparable else None,
+        "precision": precision if comparable else None,
+        "value_comparable": comparable,
     }
+
+
+def _units_in_scope(filters):
+    """Distinct units among the pollutants covered by the current filters."""
+    codes = filters["pollutants"] or list(POLLUTANT_CODES)
+    return {get_pollutant(code)["unit"] for code in codes if get_pollutant(code)}
+
+
+def _precision_for_units(units):
+    """Rounding precision when one unit remains: use the finest factor precision."""
+    if len(units) != 1:
+        return 2
+    precisions = [
+        item["precision"]
+        for item in POLLUTANTS.values()
+        if item["unit"] in units
+    ]
+    return min(precisions) if precisions else 2
 
 
 def _metric_expression(metric):
@@ -259,12 +290,23 @@ def statistics(args):
     query = apply_filters(query, filters)
     rows = query.all()
 
+    # 量级口径: 单因子筛选或按因子分组时, 每个统计值都有明确单位/精度可比较;
+    # 其余跨因子分组(站点/区域/日/月/周期/来源)在跨单位时不对浓度做聚合,
+    # 避免 μg/m³ 与 mg/m³ 混算出"看似正确实则错误"的均值/排名。
+    single_pollutant = filters["pollutants"] if len(filters["pollutants"]) == 1 else None
+    scope_units = _units_in_scope(filters)
+    scope_comparable = len(scope_units) == 1
+    value_metric = metric != "count"
+
     items = []
     for row in rows:
         data = dict(row._mapping)
         count = int(data.get("row_count") or 0)
         exceeded = int(data.get("exceeded_count") or 0)
         raw_value = data.get("metric_value")
+        unit = None
+        precision = 2
+        comparable = not value_metric  # count 永远可比
         if group_by == "station":
             key = data.get("station_code")
             label = "%s %s" % (data.get("station_code"), data.get("station_name"))
@@ -280,6 +322,10 @@ def statistics(args):
             key = data.get("bucket")
             meta = get_pollutant(key)
             label = meta["label"] if meta else key
+            if meta:
+                unit = meta["unit"]
+                precision = meta["precision"]
+                comparable = True
         elif group_by == "period":
             key = data.get("bucket")
             label = PERIOD_LABELS.get(key, key)
@@ -287,25 +333,55 @@ def statistics(args):
             key = data.get("bucket")
             label = DATA_SOURCE_LABELS.get(key, key)
 
+        if group_by != "pollutant" and value_metric:
+            if single_pollutant:
+                meta = get_pollutant(single_pollutant[0])
+                unit = meta["unit"]
+                precision = meta["precision"]
+                comparable = True
+            elif scope_comparable:
+                unit = next(iter(scope_units))
+                precision = _precision_for_units(scope_units)
+                comparable = True
+            else:
+                comparable = False
+
         items.append(
             {
                 "key": key,
                 "label": label,
-                "value": round(float(raw_value), 2) if raw_value is not None else None,
+                "value": (
+                    round(float(raw_value), precision)
+                    if value_metric and comparable
+                    else (float(raw_value) if raw_value is not None and not value_metric else None)
+                ),
                 "count": count,
                 "exceeded_count": exceeded,
                 "exceed_rate": round(exceeded / count, 4) if count else 0.0,
+                "unit": unit,
+                "precision": precision,
+                "comparable": comparable,
             }
         )
 
     if is_time_group:
         items.sort(key=lambda item: item["key"])
     else:
-        items.sort(key=lambda item: (item["value"] is None, -(item["value"] or 0)))
+        # 跨单位时不能按浓度值排名, 退化为按数据量排序
+        items.sort(
+            key=lambda item: (
+                not item["comparable"],
+                item["value"] is None,
+                -(item["value"] or 0),
+                -item["count"],
+            )
+        )
 
     return {
         "group_by": group_by,
         "metric": metric,
+        "value_metric": value_metric,
+        "value_comparable": all(item["comparable"] for item in items) if items else True,
         "items": items,
         "totals": {
             "count": sum(item["count"] for item in items),

@@ -23,6 +23,7 @@ class Measurement(TimestampMixin, db.Model):
     value = db.Column(db.Float, nullable=False)
     unit = db.Column(db.String(16))
     limit_value = db.Column(db.Float)
+    limit_policy = db.Column(db.String(64))
     exceed_ratio = db.Column(db.Float)
     is_exceeded = db.Column(db.Boolean, nullable=False, default=False, index=True)
     measured_at = db.Column(db.DateTime, nullable=False, index=True)
@@ -43,6 +44,10 @@ class Measurement(TimestampMixin, db.Model):
         meta = get_pollutant(self.pollutant)
         return meta["label"] if meta else self.pollutant
 
+    def pollutant_precision(self):
+        meta = get_pollutant(self.pollutant)
+        return meta["precision"] if meta else 2
+
     def to_dict(self, include_station=False):
         payload = {
             "id": self.id,
@@ -52,8 +57,10 @@ class Measurement(TimestampMixin, db.Model):
             "period": self.period,
             "period_label": label_of(PERIOD_LABELS, self.period),
             "value": self.value,
+            "precision": self.pollutant_precision(),
             "unit": self.unit,
             "limit_value": self.limit_value,
+            "limit_policy": self.limit_policy,
             "exceed_ratio": self.exceed_ratio,
             "is_exceeded": bool(self.is_exceeded),
             "measured_at": iso(self.measured_at),

@@ -2,7 +2,7 @@ import { SectionCard } from '../../../components/common/Card.jsx'
 import { Alert, EmptyState, Loading } from '../../../components/common/Feedback.jsx'
 import BarChart from '../../../components/common/BarChart.jsx'
 import { Field, Select } from '../../../components/common/FormField.jsx'
-import { formatNumber, formatPercent } from '../../../utils/format.js'
+import { formatConcentration, formatNumber, formatPercent } from '../../../utils/format.js'
 
 const GROUP_OPTIONS = [
   { value: 'pollutant', label: '按监测因子' },
@@ -22,14 +22,23 @@ const METRIC_OPTIONS = [
   { value: 'sum', label: '合计' }
 ]
 
+function formatStat(item, isCount) {
+  if (item.value === null || item.value === undefined) return '不可比'
+  if (isCount) return formatNumber(item.value, 0)
+  return item.unit
+    ? `${formatConcentration(item.value, item.precision ?? 2)} ${item.unit}`
+    : formatConcentration(item.value, item.precision ?? 2)
+}
+
 export default function StatisticsPanel({ params, onChange, data, loading, error, onRun }) {
   const items = data?.items ?? []
   const isCount = params.metric === 'count'
+  const mixedUnit = !isCount && data && data.value_comparable === false
 
   return (
     <SectionCard
       title="聚合统计"
-      hint="统计基于上方筛选条件, 可与结果表交叉验证"
+      hint="统计基于上方筛选条件; 不同单位(μg/m³ 与 mg/m³)的因子不跨单位混算"
       actions={
         <>
           <div style={{ width: 160 }}>
@@ -54,6 +63,12 @@ export default function StatisticsPanel({ params, onChange, data, loading, error
     >
       <div className="stack">
         {error ? <Alert tone="error">{error.message}</Alert> : null}
+        {mixedUnit ? (
+          <Alert tone="warning">
+            当前筛选包含不同单位的因子(如 CO 为 mg/m³, 其余为 μg/m³), 平均值/极值/合计不做跨单位比较,
+            显示“不可比”; 数据量与超标率仍可统计。请按单一因子筛选或选择“按监测因子”分组查看各自单位。
+          </Alert>
+        ) : null}
         {loading && items.length === 0 ? <Loading text="正在统计..." /> : null}
         {!loading && items.length === 0 && !error ? (
           <EmptyState text="点击“执行统计”查看聚合结果" icon="📈" />
@@ -76,7 +91,9 @@ export default function StatisticsPanel({ params, onChange, data, loading, error
                   {items.map((item) => (
                     <tr key={item.key}>
                       <td>{item.label}</td>
-                      <td className="text-right strong">{formatNumber(item.value)}</td>
+                      <td className={`text-right strong ${item.comparable === false ? 'muted' : ''}`}>
+                        {formatStat(item, isCount)}
+                      </td>
                       <td className="text-right">{item.count}</td>
                       <td className="text-right danger-text">{item.exceeded_count}</td>
                       <td className="text-right">{formatPercent(item.exceed_rate)}</td>

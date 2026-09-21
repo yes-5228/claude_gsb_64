@@ -9,7 +9,7 @@ import StatCard from '../../components/common/StatCard.jsx'
 import Tag from '../../components/common/Tag.jsx'
 import { EXCEEDANCE_LEVEL_TONE } from '../../constants/index.js'
 import { useAsyncData } from '../../hooks/useAsyncData.js'
-import { formatDateTime, formatNumber, formatPercent, formatRatio } from '../../utils/format.js'
+import { formatDateTime, formatConcentration, formatPercent, formatRatio } from '../../utils/format.js'
 
 export default function OverviewPage() {
   const loader = useCallback(() => overview(), [])
@@ -28,7 +28,8 @@ export default function OverviewPage() {
     {
       key: 'value',
       title: '监测值 / 限值',
-      render: (row) => `${formatNumber(row.value)} / ${formatNumber(row.limit_value)}`
+      render: (row) =>
+        `${formatConcentration(row.value, row.precision)} / ${formatConcentration(row.limit_value, row.precision)} ${row.unit || ''}`
     },
     { key: 'exceed_ratio', title: '超标倍数', render: (row) => formatRatio(row.exceed_ratio) },
     {
@@ -58,7 +59,15 @@ export default function OverviewPage() {
         <StatCard
           label="监测数据总量"
           value={measurements.total}
-          foot={`覆盖 ${measurements.station_count} 个监测点 · 均值 ${formatNumber(measurements.avg_value)}`}
+          foot={
+            measurements.value_comparable
+              ? `覆盖 ${measurements.station_count} 个监测点 · 均值 ${
+                  measurements.avg_value === null || measurements.avg_value === undefined
+                    ? '-'
+                    : `${formatConcentration(measurements.avg_value, measurements.precision ?? 2)} ${measurements.unit || ''}`
+                }`
+              : `覆盖 ${measurements.station_count} 个监测点 · 多单位混合, 均值不可比`
+          }
         />
         <StatCard
           label="超标记录"

@@ -2,12 +2,19 @@
 from flask import Blueprint, current_app, request
 
 from ..domain.constants import EXCEEDANCE_LEVEL_LABELS, EXCEEDANCE_STATUS_LABELS, PERIOD_LABELS
+from ..domain.quantize import display_number, display_ratio
+from ..domain.standards import get_pollutant
 from ..services import exceedance_service
 from ..utils.pagination import paginate_query
 from ..utils.validation import Validator
 from .helpers import json_payload, list_payload
 
 bp = Blueprint("exceedances", __name__)
+
+
+def _precision(row):
+    meta = get_pollutant(row.pollutant)
+    return meta["precision"] if meta else 2
 
 
 @bp.get("/", strict_slashes=False)
@@ -50,11 +57,14 @@ def export_exceedances():
         ("站点编码", lambda row: row.station.code if row.station else ""),
         ("站点名称", lambda row: row.station.name if row.station else ""),
         ("监测因子", "pollutant"),
-        ("监测值", "value"),
-        ("限值", "limit_value"),
-        ("超标倍数", "exceed_ratio"),
+        ("数据周期", lambda row: PERIOD_LABELS.get(row.period, row.period)),
+        ("监测值", lambda row: display_number(row.value, _precision(row))),
+        ("单位", lambda row: (get_pollutant(row.pollutant) or {}).get("unit", "")),
+        ("限值", lambda row: display_number(row.limit_value, _precision(row))),
+        ("超标倍数", lambda row: display_ratio(row.exceed_ratio)),
         ("超标等级", lambda row: EXCEEDANCE_LEVEL_LABELS.get(row.level, row.level)),
         ("标注状态", lambda row: EXCEEDANCE_STATUS_LABELS.get(row.status, row.status)),
+        ("限值口径", lambda row: row.limit_policy or ""),
         ("监测时间", lambda row: row.measured_at.strftime("%Y-%m-%d %H:%M")),
         ("标注说明", "note"),
         ("标注人", "annotator"),

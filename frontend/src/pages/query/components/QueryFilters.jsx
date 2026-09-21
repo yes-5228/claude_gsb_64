@@ -104,10 +104,13 @@ export default function QueryFilters({ value, loading, onSubmit, onReset }) {
       <Field label="结束日期">
         <Input type="date" value={draft.date_to || ''} onChange={update('date_to')} />
       </Field>
-      <Field label="监测值下限">
+      <Field
+        label="监测值下限"
+        hint={draft.pollutant ? undefined : '多因子单位不同, 建议先选定单一因子再按浓度筛选'}
+      >
         <Input type="number" step="0.01" value={draft.min_value || ''} onChange={update('min_value')} placeholder="不限" />
       </Field>
-      <Field label="监测值上限">
+      <Field label="监测值上限" hint={draft.pollutant ? undefined : '单位随因子: CO 为 mg/m³, 其余为 μg/m³'}>
         <Input type="number" step="0.01" value={draft.max_value || ''} onChange={update('max_value')} placeholder="不限" />
       </Field>
     </FilterPanel>

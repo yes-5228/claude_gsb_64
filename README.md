@@ -28,7 +28,7 @@
 | 数据库 | SQLite(默认, 零依赖) / PostgreSQL 16(可选, compose 覆盖文件) |
 | 前端 | React 18 · React Router 6 · Vite 7 · Axios · 原生 CSS(设计令牌 + 组件类) |
 | 部署 | Docker 多阶段构建 · Nginx 静态托管与 `/api` 反向代理 · docker compose |
-| 测试 | Pytest(43 个后端用例: 接口 + 领域规则) |
+| 测试 | Pytest(56 个后端用例: 接口 + 领域规则 + 单位/取整口径一致性) |
 
 ## 目录结构
 
@@ -123,7 +123,8 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 
 ## 超标判定规则
 
-判定逻辑位于 `backend/app/domain/exceedance_rules.py`, 限值定义位于 `backend/app/domain/standards.py`。
+判定逻辑位于 `backend/app/domain/exceedance_rules.py`, 限值定义位于 `backend/app/domain/standards.py`,
+折算/取整/展示的唯一口径位于 `backend/app/domain/quantize.py`。
 
 **GB 3095-2012 二级浓度限值**
 
@@ -136,8 +137,18 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 | CO | 10 | 4 | mg/m³ |
 | O₃ | 200 | 160 | μg/m³ |
 
-- **判定**: `监测值 > 限值` 即判为超标, 记录限值快照与原值, 避免限值调整后历史数据失真。
-- **分级**: 超标倍数 = 监测值 / 限值; `1.0 ~ 1.5 倍` 为轻度超标, `1.5 ~ 2.0 倍` 为中度超标, `≥ 2.0 倍` 为重度超标。
+- **判定**: 先按因子精度折算监测值(颗粒物等 1 位小数、CO 2 位小数, 四舍五入 ROUND_HALF_UP),
+  再用折算值与限值做严格比较: `折算值 > 限值` 才判超标(等于限值为达标)。监测值、限值、超标倍数、
+  限值口径在写入时固化到数据行, 限值标准调整后**历史记录维持当时判定, 不被改写**。
+- **取整口径固定**(见 `backend/app/domain/quantize.py`, 全系统唯一口径): 监测值按因子精度定长保留
+  (列表/图表/导出/标注均显示 75.0、4.00 这样的定长值, 看到的数即参与判定的数);
+  超标倍数 = 折算值 / 限值, 固定保留 **4 位小数**(四舍五入), 是否超标与等级都以这份舍入倍数为准。
+  4 位是按因子精度反推的安全位数, 保证最严组合(限值 500、精度 0.1)下舍入前后结论恒一致,
+  同一份数据不会因各处精度差异给出不同超标结论。
+- **分级**: 以固定舍入倍数判定; `[1.0000, 1.5000)` 为轻度超标, `[1.5000, 2.0000)` 为中度超标, `≥ 2.0000` 为重度超标。
+- **单位与比较口径**: 单位随因子定义, 同一因子在列表、图表、导出、标注页的单位完全一致;
+  聚合统计(均值/极值/合计)不跨单位混算——跨因子(μg/m³ 与 mg/m³)时该指标标记为"不可比"并不出数,
+  按因子分组或单因子筛选时按各自单位/精度比较, 数据量与超标率不受影响。
 - **无 1 小时限值的因子**(PM2.5、PM10 小时值)仅记录数值, 不参与超标判定, 避免误报。
 - **标注状态**: `待标注(pending)` 由系统自动创建, 人工标注为 `已确认(confirmed)` 或 `已忽略(ignored)`; 确认与忽略都必须填写标注说明, 用于后续追溯。
 
@@ -228,7 +239,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 
 ```bash
 cd backend
-python -m pytest -q          # 43 个用例: 台账 CRUD/级联、录入与超标判定、标注规则、查询统计与导出、元数据接口
+python -m pytest -q          # 56 个用例: 台账 CRUD/级联、录入与超标判定、标注规则、查询统计与导出、单位/取整口径一致性、历史判定不改写
 
 cd frontend
 npm run build                # 生产构建校验

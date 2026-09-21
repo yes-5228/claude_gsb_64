@@ -1,7 +1,7 @@
 import DataTable from '../../../components/common/DataTable.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { DATA_SOURCE_TONE, EXCEEDANCE_STATUS_TONE } from '../../../constants/index.js'
-import { formatDateTime, formatNumber } from '../../../utils/format.js'
+import { formatDateTime, formatConcentration } from '../../../utils/format.js'
 
 export default function QueryResultTable({ rows, loading }) {
   const columns = [
@@ -16,11 +16,23 @@ export default function QueryResultTable({ rows, loading }) {
       align: 'right',
       render: (row) => (
         <span className={row.is_exceeded ? 'danger-text strong' : ''}>
-          {formatNumber(row.value)} <span className="muted small">{row.unit}</span>
+          {formatConcentration(row.value, row.precision)} <span className="muted small">{row.unit}</span>
         </span>
       )
     },
-    { key: 'limit_value', title: '限值', align: 'right', render: (row) => (row.limit_value === null ? '无限值' : formatNumber(row.limit_value)) },
+    {
+      key: 'limit_value',
+      title: '限值',
+      align: 'right',
+      render: (row) =>
+        row.limit_value === null ? (
+          '无限值'
+        ) : (
+          <span>
+            {formatConcentration(row.limit_value, row.precision)} <span className="muted small">{row.unit}</span>
+          </span>
+        )
+    },
     {
       key: 'is_exceeded',
       title: '超标',

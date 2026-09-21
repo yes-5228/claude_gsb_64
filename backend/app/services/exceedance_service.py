@@ -205,7 +205,7 @@ def summary(args):
             by_level[level]["count"] = int(count)
 
     top_pollutants = [
-        {"key": pollutant, "count": int(count), "avg_ratio": round(float(avg_ratio or 0), 3)}
+        {"key": pollutant, "count": int(count), "avg_ratio": round(float(avg_ratio or 0), 4)}
         for pollutant, count, avg_ratio in (
             db.session.query(
                 subquery.c.pollutant,
@@ -247,7 +247,7 @@ def summary(args):
         "by_level": list(by_level.values()),
         "top_pollutants": top_pollutants,
         "top_stations": top_stations,
-        "max_ratio": round(float(totals[1] or 0), 3),
-        "avg_ratio": round(float(totals[2] or 0), 3),
+        "max_ratio": round(float(totals[1] or 0), 4),
+        "avg_ratio": round(float(totals[2] or 0), 4),
         "generated_at": iso(datetime.now()),
     }

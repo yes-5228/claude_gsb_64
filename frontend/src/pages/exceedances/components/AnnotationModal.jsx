@@ -7,7 +7,7 @@ import { Alert, ErrorState, Loading } from '../../../components/common/Feedback.
 import { useToast } from '../../../components/common/ToastProvider.jsx'
 import { EXCEEDANCE_LEVEL_TONE, EXCEEDANCE_STATUS_TONE } from '../../../constants/index.js'
 import { useAsyncData } from '../../../hooks/useAsyncData.js'
-import { formatDateTime, formatNumber, formatRatio } from '../../../utils/format.js'
+import { formatDateTime, formatConcentration, formatRatio } from '../../../utils/format.js'
 
 const STATUS_CHOICES = [
   { value: 'confirmed', label: '确认超标', hint: '经复核确属超标, 需记录处置说明' },
@@ -83,7 +83,10 @@ export default function AnnotationModal({ exceedanceId, onClose, onSaved }) {
             <div className="stat-card">
               <div className="stat-label">监测值 / 限值</div>
               <div className="stat-value danger-text">
-                {formatNumber(data.value)} <small>/ {formatNumber(data.limit_value)} {data.unit || ''}</small>
+                {formatConcentration(data.value, data.precision)}{' '}
+                <small>
+                  / {formatConcentration(data.limit_value, data.precision)} {data.unit || ''}
+                </small>
               </div>
             </div>
             <div className="stat-card">
@@ -112,6 +115,12 @@ export default function AnnotationModal({ exceedanceId, onClose, onSaved }) {
             </dd>
             <dt>监测因子</dt>
             <dd>{measurement?.pollutant_label || data.pollutant_label}</dd>
+            <dt>判定口径</dt>
+            <dd>
+              {data.limit_policy || (
+                <span className="muted">历史记录(限值口径未登记), 维持当时判定</span>
+              )}
+            </dd>
             <dt>数据录入</dt>
             <dd>
               {measurement?.recorder || '-'} · {measurement?.data_source_label || '-'}

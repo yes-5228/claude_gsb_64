@@ -6,7 +6,7 @@ import { Alert, Loading } from '../../../components/common/Feedback.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { useToast } from '../../../components/common/ToastProvider.jsx'
 import { usePollutantMeta, useStationOptions } from '../../../hooks/useOptions.js'
-import { formatNumber, toDateTimeInput } from '../../../utils/format.js'
+import { formatConcentration, toDateTimeInput } from '../../../utils/format.js'
 
 const PERIODS = [
   { value: 'hourly', label: '小时均值' },
@@ -51,7 +51,7 @@ export default function EntryForm({ onPreview, onSubmitted }) {
     (pollutant) => {
       const limit = pollutant.limits?.[form.period]
       if (limit === null || limit === undefined) return '该周期未设限值, 仅记录数值'
-      return `限值 ${formatNumber(limit)} ${pollutant.unit}`
+      return `限值 ${formatConcentration(limit, pollutant.precision)} ${pollutant.unit}`
     },
     [form.period]
   )
@@ -234,7 +234,7 @@ export default function EntryForm({ onPreview, onSubmitted }) {
                     <div className="inline" style={{ flexWrap: 'nowrap' }}>
                       <Input
                         type="number"
-                        step="0.01"
+                        step={pollutant.precision === 2 ? '0.01' : '0.1'}
                         min="0"
                         value={values[pollutant.code] ?? ''}
                         onChange={setValue(pollutant.code)}

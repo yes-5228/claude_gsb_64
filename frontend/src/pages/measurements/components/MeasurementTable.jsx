@@ -1,7 +1,7 @@
 import DataTable from '../../../components/common/DataTable.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { DATA_SOURCE_TONE } from '../../../constants/index.js'
-import { formatDateTime, formatNumber, formatRatio } from '../../../utils/format.js'
+import { formatDateTime, formatConcentration, formatRatio } from '../../../utils/format.js'
 
 export default function MeasurementTable({ rows, loading, onDelete }) {
   const columns = [
@@ -25,7 +25,7 @@ export default function MeasurementTable({ rows, loading, onDelete }) {
       className: 'cell-nowrap',
       render: (row) => (
         <span className={row.is_exceeded ? 'danger-text strong' : ''}>
-          {formatNumber(row.value)} <span className="muted small">{row.unit}</span>
+          {formatConcentration(row.value, row.precision)} <span className="muted small">{row.unit}</span>
         </span>
       )
     },
@@ -33,7 +33,15 @@ export default function MeasurementTable({ rows, loading, onDelete }) {
       key: 'limit_value',
       title: '限值',
       align: 'right',
-      render: (row) => (row.limit_value === null ? <span className="muted small">无限值</span> : formatNumber(row.limit_value))
+      render: (row) =>
+        row.limit_value === null ? (
+          <span className="muted small">无限值</span>
+        ) : (
+          <span>
+            {formatConcentration(row.limit_value, row.precision)}{' '}
+            <span className="muted small">{row.unit}</span>
+          </span>
+        )
     },
     {
       key: 'is_exceeded',

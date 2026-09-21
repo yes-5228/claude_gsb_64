@@ -4,9 +4,9 @@ import Modal from '../../../components/common/Modal.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import DataTable from '../../../components/common/DataTable.jsx'
 import { ErrorState, Loading } from '../../../components/common/Feedback.jsx'
-import { STATION_STATUS_TONE } from '../../../constants/index.js'
+import { STATION_STATUS_TONE, POLLUTANT_CODE_LABELS } from '../../../constants/index.js'
 import { useAsyncData } from '../../../hooks/useAsyncData.js'
-import { formatDate, formatDateTime, formatNumber } from '../../../utils/format.js'
+import { formatDate, formatDateTime, formatConcentration } from '../../../utils/format.js'
 
 export default function StationDetailDrawer({ stationId, onClose, onEdit }) {
   const loader = useCallback(() => getStation(stationId), [stationId])
@@ -16,11 +16,27 @@ export default function StationDetailDrawer({ stationId, onClose, onEdit }) {
   const stats = data?.stats || {}
 
   const columns = [
-    { key: 'pollutant', title: '监测因子' },
+    { key: 'pollutant', title: '监测因子', render: (row) => POLLUTANT_CODE_LABELS[row.pollutant] || row.pollutant },
     { key: 'count', title: '数据量', align: 'right' },
     { key: 'exceeded_count', title: '超标', align: 'right', render: (row) => (row.exceeded_count ? <span className="danger-text">{row.exceeded_count}</span> : '0') },
-    { key: 'avg_value', title: '均值', align: 'right', render: (row) => formatNumber(row.avg_value) },
-    { key: 'max_value', title: '最大值', align: 'right', render: (row) => formatNumber(row.max_value) }
+    {
+      key: 'avg_value',
+      title: '均值',
+      align: 'right',
+      render: (row) =>
+        row.avg_value === null || row.avg_value === undefined
+          ? '-'
+          : `${formatConcentration(row.avg_value, row.precision)} ${row.unit || ''}`
+    },
+    {
+      key: 'max_value',
+      title: '最大值',
+      align: 'right',
+      render: (row) =>
+        row.max_value === null || row.max_value === undefined
+          ? '-'
+          : `${formatConcentration(row.max_value, row.precision)} ${row.unit || ''}`
+    }
   ]
 
   return (

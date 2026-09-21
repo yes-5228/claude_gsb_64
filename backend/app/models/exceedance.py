@@ -5,6 +5,7 @@ from ..domain.constants import (
     PERIOD_LABELS,
     label_of,
 )
+from ..domain.standards import get_pollutant
 from ..extensions import db
 from .base import TimestampMixin, iso
 
@@ -26,6 +27,7 @@ class Exceedance(TimestampMixin, db.Model):
     period = db.Column(db.String(16), nullable=False, default="hourly")
     value = db.Column(db.Float, nullable=False)
     limit_value = db.Column(db.Float, nullable=False)
+    limit_policy = db.Column(db.String(64))
     exceed_ratio = db.Column(db.Float, nullable=False)
     level = db.Column(db.String(16), nullable=False, default="light", index=True)
     status = db.Column(db.String(16), nullable=False, default="pending", index=True)
@@ -48,7 +50,9 @@ class Exceedance(TimestampMixin, db.Model):
             "period_label": label_of(PERIOD_LABELS, self.period),
             "value": self.value,
             "limit_value": self.limit_value,
+            "limit_policy": self.limit_policy,
             "exceed_ratio": self.exceed_ratio,
+            "precision": (get_pollutant(self.pollutant) or {}).get("precision", 2),
             "level": self.level,
             "level_label": label_of(EXCEEDANCE_LEVEL_LABELS, self.level),
             "status": self.status,

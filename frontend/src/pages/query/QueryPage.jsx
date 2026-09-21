@@ -9,7 +9,7 @@ import { useToast } from '../../components/common/ToastProvider.jsx'
 import { useAsyncData } from '../../hooks/useAsyncData.js'
 import { useListQuery } from '../../hooks/useListQuery.js'
 import { saveBlob } from '../../utils/download.js'
-import { formatDateTime, formatNumber, formatPercent } from '../../utils/format.js'
+import { formatDateTime, formatConcentration, formatPercent } from '../../utils/format.js'
 import QueryFilters from './components/QueryFilters.jsx'
 import QueryResultTable from './components/QueryResultTable.jsx'
 import StatisticsPanel from './components/StatisticsPanel.jsx'
@@ -80,7 +80,18 @@ export default function QueryPage() {
           tone={summary?.exceeded_count ? 'danger' : undefined}
           foot={summary ? `超标率 ${formatPercent(summary.exceed_rate)}` : ''}
         />
-        <StatCard label="平均浓度" value={summary ? formatNumber(summary.avg_value) : '-'} foot="按当前筛选范围计算" />
+        <StatCard
+          label="平均浓度"
+          value={
+            summary
+              ? summary.value_comparable && summary.avg_value !== null && summary.avg_value !== undefined
+                ? formatConcentration(summary.avg_value, summary.precision ?? 2)
+                : '不可比'
+              : '-'
+          }
+          unit={summary?.value_comparable ? summary.unit || '' : ''}
+          foot={summary ? (summary.value_comparable ? '按当前筛选范围计算' : '因子单位不同, 均值不做跨单位比较') : '按当前筛选范围计算'}
+        />
         <StatCard
           label="时间范围"
           value={summary ? formatDateTime(summary.first_measured_at).slice(5, 10) : '-'}

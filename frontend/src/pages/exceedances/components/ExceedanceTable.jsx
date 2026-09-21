@@ -1,7 +1,7 @@
 import DataTable from '../../../components/common/DataTable.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { EXCEEDANCE_LEVEL_TONE, EXCEEDANCE_STATUS_TONE } from '../../../constants/index.js'
-import { formatDateTime, formatNumber, formatRatio } from '../../../utils/format.js'
+import { formatDateTime, formatConcentration, formatRatio } from '../../../utils/format.js'
 
 export default function ExceedanceTable({
   rows,
@@ -31,8 +31,11 @@ export default function ExceedanceTable({
       className: 'cell-nowrap',
       render: (row) => (
         <span>
-          <span className="danger-text strong">{formatNumber(row.value)}</span>
-          <span className="muted"> / {formatNumber(row.limit_value)} {row.unit || ''}</span>
+          <span className="danger-text strong">{formatConcentration(row.value, row.precision)}</span>
+          <span className="muted">
+            {' '}
+            / {formatConcentration(row.limit_value, row.precision)} {row.unit || ''}
+          </span>
         </span>
       )
     },

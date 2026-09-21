@@ -152,6 +152,28 @@ def reset_database():
     db.create_all()
 
 
+def ensure_schema_columns():
+    """Idempotent lightweight column migration for existing databases.
+
+    Only ADDS missing columns; historical rows keep their verdicts and get NULL
+    for the newly introduced limit-policy snapshot (shown as 历史口径未登记),
+    it never recomputes or rewrites past exceedance judgements.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    additions = {
+        "measurements": ("limit_policy", "VARCHAR(64)"),
+        "exceedances": ("limit_policy", "VARCHAR(64)"),
+    }
+    for table, (column, ddl_type) in additions.items():
+        if inspector.has_table(table):
+            present = {item["name"] for item in inspector.get_columns(table)}
+            if column not in present:
+                db.session.execute(text("ALTER TABLE %s ADD COLUMN %s %s" % (table, column, ddl_type)))
+    db.session.commit()
+
+
 def ensure_bootstrap(app):
     """Create tables / seed demo data at startup when enabled by config."""
     auto_init = app.config.get("AUTO_INIT_DB")
@@ -162,6 +184,7 @@ def ensure_bootstrap(app):
         try:
             if auto_init:
                 db.create_all()
+            ensure_schema_columns()
             if auto_seed and db.session.query(Station.id).first() is None:
                 app.logger.info("seeding demo data ...")
                 seed_demo_data()

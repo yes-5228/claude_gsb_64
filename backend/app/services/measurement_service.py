@@ -1,4 +1,6 @@
 """监测数据录入业务逻辑 (含超标自动判定)."""
+from flask import current_app
+
 from ..domain import exceedance_rules
 from ..domain.standards import get_pollutant
 from ..errors import ConflictError, NotFoundError, ValidationError
@@ -32,7 +34,7 @@ def preview_entries(period, entries):
             {
                 "pollutant": pollutant,
                 "pollutant_label": meta["label"],
-                "value": value,
+                "value": evaluation["value"],
                 "unit": meta["unit"],
                 **evaluation,
             }
@@ -92,8 +94,9 @@ def record_entries(station_id, measured_at, period, entries, data_source="manual
             {
                 "pollutant": pollutant,
                 "pollutant_label": meta["label"],
-                "value": value,
+                "value": evaluation["value"],
                 "unit": meta["unit"],
+                "limit_policy": current_app.config["LIMIT_POLICY"],
                 **evaluation,
             }
         )
@@ -117,9 +120,11 @@ def record_entries(station_id, measured_at, period, entries, data_source="manual
                                  measured_at=measured_at)
             db.session.add(record)
 
-        record.value = value
+        # 存折算后的读数: 库里的值就是参与判定、也是各页面展示的同一个值
+        record.value = evaluation["value"]
         record.unit = meta["unit"]
         record.limit_value = evaluation["limit"]
+        record.limit_policy = current_app.config["LIMIT_POLICY"]
         record.exceed_ratio = evaluation["ratio"]
         record.is_exceeded = evaluation["exceeded"]
         record.data_source = data_source
@@ -168,6 +173,7 @@ def _sync_exceedance(record, meta, evaluation):
                 measured_at=record.measured_at,
                 value=record.value,
                 limit_value=evaluation["limit"],
+                limit_policy=record.limit_policy,
                 exceed_ratio=evaluation["ratio"],
                 level=evaluation["level"],
                 status="pending",

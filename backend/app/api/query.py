@@ -2,6 +2,7 @@
 from flask import Blueprint, current_app, request
 
 from ..domain.constants import DATA_SOURCE_LABELS, PERIOD_LABELS, STATION_TYPE_LABELS
+from ..domain.quantize import display_number, display_ratio
 from ..domain.standards import POLLUTANTS
 from ..services import query_service
 from ..utils.pagination import paginate_query
@@ -35,11 +36,13 @@ def query_export():
         ("所属区域", lambda row: row.station.area if row.station else ""),
         ("监测因子", lambda row: row.pollutant_label()),
         ("数据周期", lambda row: PERIOD_LABELS.get(row.period, row.period)),
-        ("监测值", "value"),
+        ("监测值", lambda row: display_number(row.value, row.pollutant_precision())),
         ("单位", "unit"),
-        ("限值", "limit_value"),
+        ("限值", lambda row: display_number(row.limit_value, row.pollutant_precision())
+            if row.limit_value is not None else ""),
         ("是否超标", lambda row: "是" if row.is_exceeded else "否"),
-        ("超标倍数", "exceed_ratio"),
+        ("超标倍数", lambda row: display_ratio(row.exceed_ratio) if row.exceed_ratio is not None else ""),
+        ("限值口径", lambda row: row.limit_policy or ""),
         ("监测时间", lambda row: row.measured_at.strftime("%Y-%m-%d %H:%M")),
         ("数据来源", lambda row: DATA_SOURCE_LABELS.get(row.data_source, row.data_source)),
         ("录入人", "recorder"),
