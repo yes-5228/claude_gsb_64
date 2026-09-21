@@ -1,7 +1,19 @@
 import DataTable from '../../../components/common/DataTable.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { EXCEEDANCE_LEVEL_TONE, EXCEEDANCE_STATUS_TONE } from '../../../constants/index.js'
-import { formatDateTime, formatNumber, formatRatio } from '../../../utils/format.js'
+import { formatDateTime, formatRatio } from '../../../utils/format.js'
+import { formatFixed, rowPrecision, usePollutantItems } from '../../../utils/pollutants.js'
+
+function ValueLimitCell({ row }) {
+  const items = usePollutantItems()
+  const precision = rowPrecision(row, items)
+  return (
+    <span>
+      <span className="danger-text strong">{formatFixed(row.value, precision)}</span>
+      <span className="muted"> / {formatFixed(row.limit_value, precision)} {row.unit || ''}</span>
+    </span>
+  )
+}
 
 export default function ExceedanceTable({
   rows,
@@ -29,12 +41,7 @@ export default function ExceedanceTable({
       key: 'value',
       title: '监测值 / 限值',
       className: 'cell-nowrap',
-      render: (row) => (
-        <span>
-          <span className="danger-text strong">{formatNumber(row.value)}</span>
-          <span className="muted"> / {formatNumber(row.limit_value)} {row.unit || ''}</span>
-        </span>
-      )
+      render: (row) => <ValueLimitCell row={row} />
     },
     {
       key: 'exceed_ratio',

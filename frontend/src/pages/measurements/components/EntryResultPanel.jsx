@@ -2,7 +2,8 @@ import { SectionCard } from '../../../components/common/Card.jsx'
 import { Alert } from '../../../components/common/Feedback.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { EXCEEDANCE_LEVEL_LABELS, EXCEEDANCE_LEVEL_TONE } from '../../../constants/index.js'
-import { formatDateTime, formatNumber, formatPercent } from '../../../utils/format.js'
+import { formatDateTime, formatPercent } from '../../../utils/format.js'
+import { formatFixed } from '../../../utils/pollutants.js'
 
 function ResultTable({ columns, rows }) {
   if (rows.length === 0) return <div className="empty">没有数据</div>
@@ -60,7 +61,13 @@ export default function EntryResultPanel({ result, summary, onClose }) {
               <dt>最近监测时间</dt>
               <dd>{formatDateTime(summary.last_measured_at)}</dd>
               <dt>均值</dt>
-              <dd>{formatNumber(summary.avg_value)}</dd>
+              <dd>
+                {summary.mixed_units
+                  ? 'μg/m³ 与 mg/m³ 不做混合平均'
+                  : summary.avg_value === null || summary.avg_value === undefined
+                    ? '-'
+                    : `${summary.avg_value} ${summary.avg_unit || ''}`}
+              </dd>
             </dl>
           </div>
         ) : (
@@ -81,18 +88,25 @@ export default function EntryResultPanel({ result, summary, onClose }) {
 
   const columns = [
     { key: 'pollutant', title: '监测因子', render: (row) => row.pollutant_label || row.pollutant },
-    { key: 'value', title: '监测值', render: (row) => `${formatNumber(row.value)} ${row.unit || ''}` },
+    {
+      key: 'value',
+      title: '监测值',
+      render: (row) => `${formatFixed(row.value, row.precision ?? 2)} ${row.unit || ''}`
+    },
     {
       key: 'limit',
       title: '限值',
-      render: (row) => (row.limit === null || row.limit === undefined ? '无限值' : formatNumber(row.limit))
+      render: (row) =>
+        row.limit === null || row.limit === undefined
+          ? '无限值'
+          : `${formatFixed(row.limit, row.precision ?? 2)} ${row.unit || ''}`
     },
     {
       key: 'exceeded',
       title: '判定',
       render: (row) =>
         row.exceeded ? (
-          <Tag tone="danger">超标 {formatNumber(row.ratio, 2)} 倍</Tag>
+          <Tag tone="danger">超标 {Number(row.ratio).toFixed(2)} 倍</Tag>
         ) : row.applicable ? (
           <Tag tone="success">达标</Tag>
         ) : (

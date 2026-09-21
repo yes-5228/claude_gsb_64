@@ -1,7 +1,33 @@
 import DataTable from '../../../components/common/DataTable.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { DATA_SOURCE_TONE } from '../../../constants/index.js'
-import { formatDateTime, formatNumber, formatRatio } from '../../../utils/format.js'
+import { formatDateTime, formatRatio } from '../../../utils/format.js'
+import { formatFixed, rowPrecision, usePollutantItems } from '../../../utils/pollutants.js'
+
+function ValueWithUnit({ row }) {
+  const items = usePollutantItems()
+  const precision = rowPrecision(row, items)
+  return (
+    <span className={row.is_exceeded ? 'danger-text strong' : ''}>
+      {formatFixed(row.value, precision)}{' '}
+      <span className="muted small">{row.unit}</span>
+    </span>
+  )
+}
+
+function LimitCell({ row }) {
+  const items = usePollutantItems()
+  if (row.limit_value === null || row.limit_value === undefined) {
+    return <span className="muted small">无限值</span>
+  }
+  // 限值与监测值使用同一因子精度与单位, 保证两个数可以直接对齐比较
+  return (
+    <span>
+      {formatFixed(row.limit_value, rowPrecision(row, items))}{' '}
+      <span className="muted small">{row.unit}</span>
+    </span>
+  )
+}
 
 export default function MeasurementTable({ rows, loading, onDelete }) {
   const columns = [
@@ -18,31 +44,17 @@ export default function MeasurementTable({ rows, loading, onDelete }) {
     },
     { key: 'pollutant_label', title: '监测因子', className: 'cell-nowrap' },
     { key: 'period_label', title: '周期', className: 'cell-nowrap' },
-    {
-      key: 'value',
-      title: '监测值',
-      align: 'right',
-      className: 'cell-nowrap',
-      render: (row) => (
-        <span className={row.is_exceeded ? 'danger-text strong' : ''}>
-          {formatNumber(row.value)} <span className="muted small">{row.unit}</span>
-        </span>
-      )
-    },
-    {
-      key: 'limit_value',
-      title: '限值',
-      align: 'right',
-      render: (row) => (row.limit_value === null ? <span className="muted small">无限值</span> : formatNumber(row.limit_value))
-    },
+    { key: 'value', title: '监测值', align: 'right', className: 'cell-nowrap', render: (row) => <ValueWithUnit row={row} /> },
+    { key: 'limit_value', title: '限值', align: 'right', className: 'cell-nowrap', render: (row) => <LimitCell row={row} /> },
     {
       key: 'is_exceeded',
       title: '超标判定',
+      className: 'cell-nowrap',
       render: (row) =>
         row.is_exceeded ? <Tag tone="danger">{formatRatio(row.exceed_ratio)}</Tag> : <Tag tone="success">达标</Tag>
     },
     {
-      key: 'data_source_label',
+      key: 'data_source',
       title: '来源',
       render: (row) => <Tag tone={DATA_SOURCE_TONE[row.data_source]}>{row.data_source_label}</Tag>
     },

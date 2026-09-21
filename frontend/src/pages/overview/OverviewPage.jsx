@@ -9,7 +9,21 @@ import StatCard from '../../components/common/StatCard.jsx'
 import Tag from '../../components/common/Tag.jsx'
 import { EXCEEDANCE_LEVEL_TONE } from '../../constants/index.js'
 import { useAsyncData } from '../../hooks/useAsyncData.js'
-import { formatDateTime, formatNumber, formatPercent, formatRatio } from '../../utils/format.js'
+import { formatDateTime, formatPercent, formatRatio } from '../../utils/format.js'
+import { formatFixed, rowPrecision, usePollutantItems } from '../../utils/pollutants.js'
+
+function PendingValueCell({ row }) {
+  const items = usePollutantItems()
+  const precision = rowPrecision(row, items)
+  return (
+    <span>
+      <span className="danger-text">{formatFixed(row.value, precision)}</span>
+      <span className="muted small">
+        {' '}/ {formatFixed(row.limit_value, precision)} {row.unit}
+      </span>
+    </span>
+  )
+}
 
 export default function OverviewPage() {
   const loader = useCallback(() => overview(), [])
@@ -28,7 +42,8 @@ export default function OverviewPage() {
     {
       key: 'value',
       title: '监测值 / 限值',
-      render: (row) => `${formatNumber(row.value)} / ${formatNumber(row.limit_value)}`
+      className: 'cell-nowrap',
+      render: (row) => <PendingValueCell row={row} />
     },
     { key: 'exceed_ratio', title: '超标倍数', render: (row) => formatRatio(row.exceed_ratio) },
     {
@@ -58,7 +73,15 @@ export default function OverviewPage() {
         <StatCard
           label="监测数据总量"
           value={measurements.total}
-          foot={`覆盖 ${measurements.station_count} 个监测点 · 均值 ${formatNumber(measurements.avg_value)}`}
+          foot={
+            measurements.mixed_units
+              ? `覆盖 ${measurements.station_count} 个监测点 · 均值含 μg/m³ 与 mg/m³ 不做混合平均`
+              : `覆盖 ${measurements.station_count} 个监测点 · 均值 ${
+                  measurements.avg_value === null || measurements.avg_value === undefined
+                    ? '-'
+                    : `${measurements.avg_value} ${measurements.avg_unit || ''}`
+                }`
+          }
         />
         <StatCard
           label="超标记录"

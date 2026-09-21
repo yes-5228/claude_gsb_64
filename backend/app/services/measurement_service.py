@@ -28,12 +28,15 @@ def preview_entries(period, entries):
                 "%s 监测值必须为数字" % meta["label"], fields={pollutant: "invalid_number"}
             )
         evaluation = exceedance_rules.evaluate(pollutant, period, value)
+        # 落库值与判定值必须是同一个"按因子精度取整后的记录值"
+        value = evaluation["value"]
         results.append(
             {
                 "pollutant": pollutant,
                 "pollutant_label": meta["label"],
                 "value": value,
                 "unit": meta["unit"],
+                "precision": evaluation["precision"],
                 **evaluation,
             }
         )
@@ -88,12 +91,15 @@ def record_entries(station_id, measured_at, period, entries, data_source="manual
             )
 
         evaluation = exceedance_rules.evaluate(pollutant, period, value)
+        # 统一使用按因子精度取整后的记录值, 保证库内值/判定值/展示值一致
+        value = evaluation["value"]
         evaluated.append(
             {
                 "pollutant": pollutant,
                 "pollutant_label": meta["label"],
                 "value": value,
                 "unit": meta["unit"],
+                "precision": evaluation["precision"],
                 **evaluation,
             }
         )
@@ -119,7 +125,10 @@ def record_entries(station_id, measured_at, period, entries, data_source="manual
 
         record.value = value
         record.unit = meta["unit"]
+        record.precision = evaluation["precision"]
         record.limit_value = evaluation["limit"]
+        record.standard_key = evaluation["standard_key"]
+        record.standard_label = evaluation["standard_label"]
         record.exceed_ratio = evaluation["ratio"]
         record.is_exceeded = evaluation["exceeded"]
         record.data_source = data_source
@@ -168,6 +177,8 @@ def _sync_exceedance(record, meta, evaluation):
                 measured_at=record.measured_at,
                 value=record.value,
                 limit_value=evaluation["limit"],
+                standard_key=evaluation["standard_key"],
+                standard_label=evaluation["standard_label"],
                 exceed_ratio=evaluation["ratio"],
                 level=evaluation["level"],
                 status="pending",
@@ -175,6 +186,8 @@ def _sync_exceedance(record, meta, evaluation):
         else:
             record.exceedance.value = record.value
             record.exceedance.limit_value = evaluation["limit"]
+            record.exceedance.standard_key = evaluation["standard_key"]
+            record.exceedance.standard_label = evaluation["standard_label"]
             record.exceedance.exceed_ratio = evaluation["ratio"]
             record.exceedance.level = evaluation["level"]
             record.exceedance.measured_at = record.measured_at

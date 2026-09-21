@@ -28,7 +28,7 @@
 | 数据库 | SQLite(默认, 零依赖) / PostgreSQL 16(可选, compose 覆盖文件) |
 | 前端 | React 18 · React Router 6 · Vite 7 · Axios · 原生 CSS(设计令牌 + 组件类) |
 | 部署 | Docker 多阶段构建 · Nginx 静态托管与 `/api` 反向代理 · docker compose |
-| 测试 | Pytest(43 个后端用例: 接口 + 领域规则) |
+| 测试 | Pytest(59 个后端用例: 接口 + 领域规则 + 取整/标准快照) |
 
 ## 目录结构
 
@@ -123,22 +123,52 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 
 ## 超标判定规则
 
-判定逻辑位于 `backend/app/domain/exceedance_rules.py`, 限值定义位于 `backend/app/domain/standards.py`。
+判定逻辑位于 `backend/app/domain/exceedance_rules.py`, 限值定义位于 `backend/app/domain/standards.py`,
+取整口径位于 `backend/app/domain/rounding.py`。
 
 **GB 3095-2012 二级浓度限值**
 
-| 监测因子 | 1 小时平均 | 24 小时平均 | 单位 |
-| --- | --- | --- | --- |
-| PM2.5 | 不设限值(仅记录) | 75 | μg/m³ |
-| PM10 | 不设限值(仅记录) | 150 | μg/m³ |
-| SO₂ | 500 | 150 | μg/m³ |
-| NO₂ | 200 | 80 | μg/m³ |
-| CO | 10 | 4 | mg/m³ |
-| O₃ | 200 | 160 | μg/m³ |
+| 监测因子 | 1 小时平均 | 24 小时平均 | 单位 | 浓度精度 |
+| --- | --- | --- | --- | --- |
+| PM2.5 | 不设限值(仅记录) | 75 | μg/m³ | 1 位小数 |
+| PM10 | 不设限值(仅记录) | 150 | μg/m³ | 1 位小数 |
+| SO₂ | 500 | 150 | μg/m³ | 1 位小数 |
+| NO₂ | 200 | 80 | μg/m³ | 1 位小数 |
+| CO | 10 | 4 | mg/m³ | 2 位小数 |
+| O₃ | 200 | 160 | μg/m³ | 1 位小数 |
 
-- **判定**: `监测值 > 限值` 即判为超标, 记录限值快照与原值, 避免限值调整后历史数据失真。
-- **分级**: 超标倍数 = 监测值 / 限值; `1.0 ~ 1.5 倍` 为轻度超标, `1.5 ~ 2.0 倍` 为中度超标, `≥ 2.0 倍` 为重度超标。
-- **无 1 小时限值的因子**(PM2.5、PM10 小时值)仅记录数值, 不参与超标判定, 避免误报。
+### 单位与展示口径
+
+- 单位与精度是因子元数据的一部分, 由后端 `/api/meta/pollutants` 统一下发;
+  **列表、图表、CSV 导出、录入回执、超标列表、标注弹窗**一律按同一精度取位、
+  携带同一单位, 不存在"页面显示 80.0、导出变成 80.00"之类的分叉。
+- 限值与监测值使用**相同精度与单位**并排展示, 两个数可直接对齐比较。
+- 不同因子按**各自单位**参与比较与统计: μg/m³ 与 mg/m³ 不做跨单位换算,
+  也不混合平均/合计。查询筛选同时覆盖多种单位时, "平均浓度"留空并明确提示
+  "含多种单位, 不做混合平均"; 聚合统计中跨单位的分组(如按日、按站点)标记为
+  `comparable=false` 且不输出浓度值, 按因子分组时每组只有一个单位, 正常出值。
+  数据条数与超标率与量纲无关, 仍正常聚合。
+
+### 折算与取整
+
+- 监测值先按因子精度**四舍五入(ROUND_HALF_UP, 与检测报告/Excel 一致)**得到
+  "记录值", 再参与判定、存储与展示——即**先取整、再判定**, 各处使用的是同一个数。
+- 判定为**严格大于**: `记录值 > 限值` 判超标, 恰好等于限值为达标。
+- 例: PM2.5 精度 1 位, `75.04 → 75.0` 达标, `75.05 → 75.1` 超标;
+  CO 精度 2 位, `4.004 → 4.00` 达标, `4.005 → 4.01` 超标。
+  因此接近限值时不会因录入框、列表、导出各自的小数位差异给出矛盾结论。
+- **超标倍数** = 记录值 / 限值, 存储/展示保留 3 位小数; 分级在**未舍入倍数**
+  上进行, 边界含下限: `1.0~1.5` 轻度, `≥1.5` 中度, `≥2.0` 重度。
+- **无 1 小时限值的因子**(PM2.5、PM10 小时值)仅记录数值, 不参与超标判定。
+
+### 限值口径与历史留痕
+
+- 限值按"标准口径"管理, key(如 `GB3095-2012:L2:v1`)一经发布即冻结; 限值修订
+  时在 `standards.py` 新增一个版本并把 `CURRENT_STANDARD_KEY` 指向它, 旧版本保留。
+- 每条数据落库时写入当时的 `standard_key`、`standard_label` 与 `limit_value` 快照
+  (`measurements` 与 `exceedances` 各一份)。**限值口径调整只影响之后新录入/覆盖
+  时的判定, 历史记录的限值、超标结论与等级始终以快照为准, 不会被回算改写**;
+  标注弹窗会展示该记录当时使用的标准口径。
 - **标注状态**: `待标注(pending)` 由系统自动创建, 人工标注为 `已确认(confirmed)` 或 `已忽略(ignored)`; 确认与忽略都必须填写标注说明, 用于后续追溯。
 
 ## API 概览
@@ -205,8 +235,8 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 | 表 | 关键字段 | 说明 |
 | --- | --- | --- |
 | `stations` | `code`(唯一) `name` `area` `station_type` `status` `longitude/latitude` `installed_at` | 监测点台账 |
-| `measurements` | `station_id` `pollutant` `period` `value` `limit_value` `exceed_ratio` `is_exceeded` `measured_at` `data_source` `recorder` | 监测数据; `(station_id, pollutant, period, measured_at)` 唯一 |
-| `exceedances` | `measurement_id`(唯一) `status` `level` `note` `annotator` `annotated_at` | 超标记录与人工标注 |
+| `measurements` | `station_id` `pollutant` `period` `value` `precision` `unit` `limit_value` `standard_key` `standard_label` `exceed_ratio` `is_exceeded` `measured_at` `data_source` `recorder` | 监测数据; `(station_id, pollutant, period, measured_at)` 唯一 |
+| `exceedances` | `measurement_id`(唯一) `standard_key` `status` `level` `note` `annotator` `annotated_at` | 超标记录与人工标注 |
 
 删除监测点会级联清理其监测数据与超标记录; 删除监测数据会同时删除对应超标记录。
 
@@ -228,7 +258,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --buil
 
 ```bash
 cd backend
-python -m pytest -q          # 43 个用例: 台账 CRUD/级联、录入与超标判定、标注规则、查询统计与导出、元数据接口
+python -m pytest -q          # 59 个用例: 台账 CRUD/级联、录入与超标判定、取整口径/标准快照、跨单位聚合、标注规则、查询统计与导出、元数据接口
 
 cd frontend
 npm run build                # 生产构建校验

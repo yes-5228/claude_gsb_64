@@ -25,7 +25,7 @@ def query_statistics():
 
 @bp.get("/export")
 def query_export():
-    from ..utils.csv_export import csv_response
+    from ..utils.csv_export import csv_response, formatted_limit, formatted_ratio, formatted_value
 
     query, _ = query_service.measurement_query(request.args)
     rows = query.limit(current_app.config["MAX_EXPORT_ROWS"]).all()
@@ -35,11 +35,12 @@ def query_export():
         ("所属区域", lambda row: row.station.area if row.station else ""),
         ("监测因子", lambda row: row.pollutant_label()),
         ("数据周期", lambda row: PERIOD_LABELS.get(row.period, row.period)),
-        ("监测值", "value"),
+        ("监测值", formatted_value),
         ("单位", "unit"),
-        ("限值", "limit_value"),
+        ("限值", formatted_limit),
         ("是否超标", lambda row: "是" if row.is_exceeded else "否"),
-        ("超标倍数", "exceed_ratio"),
+        ("超标倍数", formatted_ratio),
+        ("判定标准", lambda row: row.standard_label or ""),
         ("监测时间", lambda row: row.measured_at.strftime("%Y-%m-%d %H:%M")),
         ("数据来源", lambda row: DATA_SOURCE_LABELS.get(row.data_source, row.data_source)),
         ("录入人", "recorder"),

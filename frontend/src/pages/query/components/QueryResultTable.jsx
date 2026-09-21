@@ -1,7 +1,27 @@
 import DataTable from '../../../components/common/DataTable.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { DATA_SOURCE_TONE, EXCEEDANCE_STATUS_TONE } from '../../../constants/index.js'
-import { formatDateTime, formatNumber } from '../../../utils/format.js'
+import { formatDateTime } from '../../../utils/format.js'
+import { formatFixed, rowPrecision, usePollutantItems } from '../../../utils/pollutants.js'
+
+function ValueWithUnit({ row }) {
+  const items = usePollutantItems()
+  return (
+    <span className={row.is_exceeded ? 'danger-text strong' : ''}>
+      {formatFixed(row.value, rowPrecision(row, items))} <span className="muted small">{row.unit}</span>
+    </span>
+  )
+}
+
+function LimitCell({ row }) {
+  const items = usePollutantItems()
+  if (row.limit_value === null || row.limit_value === undefined) return <span className="muted">无限值</span>
+  return (
+    <span>
+      {formatFixed(row.limit_value, rowPrecision(row, items))} <span className="muted small">{row.unit}</span>
+    </span>
+  )
+}
 
 export default function QueryResultTable({ rows, loading }) {
   const columns = [
@@ -10,17 +30,8 @@ export default function QueryResultTable({ rows, loading }) {
     { key: 'station_area', title: '区域', render: (row) => row.station?.area || '-' },
     { key: 'pollutant_label', title: '因子', className: 'cell-nowrap' },
     { key: 'period_label', title: '周期', className: 'cell-nowrap' },
-    {
-      key: 'value',
-      title: '监测值',
-      align: 'right',
-      render: (row) => (
-        <span className={row.is_exceeded ? 'danger-text strong' : ''}>
-          {formatNumber(row.value)} <span className="muted small">{row.unit}</span>
-        </span>
-      )
-    },
-    { key: 'limit_value', title: '限值', align: 'right', render: (row) => (row.limit_value === null ? '无限值' : formatNumber(row.limit_value)) },
+    { key: 'value', title: '监测值', align: 'right', className: 'cell-nowrap', render: (row) => <ValueWithUnit row={row} /> },
+    { key: 'limit_value', title: '限值', align: 'right', className: 'cell-nowrap', render: (row) => <LimitCell row={row} /> },
     {
       key: 'is_exceeded',
       title: '超标',

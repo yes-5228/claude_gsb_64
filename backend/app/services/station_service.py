@@ -2,6 +2,8 @@
 from sqlalchemy import cast, func, or_
 
 from ..domain.constants import STATION_STATUS_LABELS, STATION_TYPE_LABELS
+from ..domain.rounding import round_value
+from ..domain.standards import get_pollutant
 from ..errors import ConflictError, NotFoundError
 from ..extensions import db
 from ..models import Exceedance, Measurement, Station
@@ -134,16 +136,25 @@ def detail_stats(station):
         .group_by(Measurement.pollutant)
         .all()
     )
-    pollutants = [
-        {
-            "pollutant": pollutant,
-            "count": int(count or 0),
-            "exceeded_count": int(exceeded or 0),
-            "avg_value": round(float(avg), 2) if avg is not None else None,
-            "max_value": float(max_value) if max_value is not None else None,
-        }
-        for pollutant, count, exceeded, avg, max_value in rows
-    ]
+    pollutants = []
+    for pollutant, count, exceeded, avg, max_value in rows:
+        meta = get_pollutant(pollutant)
+        precision = int(meta["precision"]) if meta else 2
+        unit = meta["unit"] if meta else None
+        pollutants.append(
+            {
+                "pollutant": pollutant,
+                "pollutant_label": meta["label"] if meta else pollutant,
+                "unit": unit,
+                "precision": precision,
+                "count": int(count or 0),
+                "exceeded_count": int(exceeded or 0),
+                "avg_value": round_value(float(avg), precision) if avg is not None else None,
+                "max_value": round_value(float(max_value), precision)
+                if max_value is not None
+                else None,
+            }
+        )
     summary = stats_map([station.id]).get(station.id, {})
     summary["pollutants"] = sorted(pollutants, key=lambda item: item["pollutant"])
     return summary

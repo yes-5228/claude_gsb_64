@@ -7,7 +7,8 @@ import { Alert, ErrorState, Loading } from '../../../components/common/Feedback.
 import { useToast } from '../../../components/common/ToastProvider.jsx'
 import { EXCEEDANCE_LEVEL_TONE, EXCEEDANCE_STATUS_TONE } from '../../../constants/index.js'
 import { useAsyncData } from '../../../hooks/useAsyncData.js'
-import { formatDateTime, formatNumber, formatRatio } from '../../../utils/format.js'
+import { formatDateTime, formatRatio } from '../../../utils/format.js'
+import { formatFixed, rowPrecision, usePollutantItems } from '../../../utils/pollutants.js'
 
 const STATUS_CHOICES = [
   { value: 'confirmed', label: '确认超标', hint: '经复核确属超标, 需记录处置说明' },
@@ -58,6 +59,11 @@ export default function AnnotationModal({ exceedanceId, onClose, onSaved }) {
 
   const measurement = data?.measurement
 
+  // 标注页与列表、导出使用同一精度/单位, 避免同一数据出现不同展示
+  const pollutantItems = usePollutantItems()
+  const valuePrecision = rowPrecision(data, pollutantItems)
+  const standardLabel = data.standard_label || measurement?.standard_label
+
   return (
     <Modal
       open={Boolean(exceedanceId)}
@@ -81,9 +87,10 @@ export default function AnnotationModal({ exceedanceId, onClose, onSaved }) {
         <div className="stack">
           <div className="stat-grid">
             <div className="stat-card">
-              <div className="stat-label">监测值 / 限值</div>
+              <div className="stat-label">监测值 / 限值 ({data.unit || measurement?.unit || ''})</div>
               <div className="stat-value danger-text">
-                {formatNumber(data.value)} <small>/ {formatNumber(data.limit_value)} {data.unit || ''}</small>
+                {formatFixed(data.value, valuePrecision)}{' '}
+                <small>/ {formatFixed(data.limit_value, valuePrecision)} {data.unit || measurement?.unit || ''}</small>
               </div>
             </div>
             <div className="stat-card">
@@ -112,6 +119,11 @@ export default function AnnotationModal({ exceedanceId, onClose, onSaved }) {
             </dd>
             <dt>监测因子</dt>
             <dd>{measurement?.pollutant_label || data.pollutant_label}</dd>
+            <dt>判定口径</dt>
+            <dd>
+              {standardLabel || '-'}{' '}
+              <span className="small muted">历史判定以记录时口径为准, 标准修订不影响本记录</span>
+            </dd>
             <dt>数据录入</dt>
             <dd>
               {measurement?.recorder || '-'} · {measurement?.data_source_label || '-'}

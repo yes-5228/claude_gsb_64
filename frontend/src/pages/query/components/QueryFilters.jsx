@@ -78,7 +78,10 @@ export default function QueryFilters({ value, loading, onSubmit, onReset }) {
           value={draft.pollutant || ''}
           onChange={update('pollutant')}
           placeholder="全部因子"
-          options={(pollutantData?.items ?? []).map((item) => ({ value: item.code, label: item.label }))}
+          options={(pollutantData?.items ?? []).map((item) => ({
+            value: item.code,
+            label: `${item.label} (${item.unit})`
+          }))}
         />
       </Field>
       <Field label="数据周期">

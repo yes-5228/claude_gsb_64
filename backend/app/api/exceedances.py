@@ -41,7 +41,21 @@ def exceedance_options():
 
 @bp.get("/export")
 def export_exceedances():
-    from ..utils.csv_export import csv_response
+    from ..utils.csv_export import csv_response, formatted_ratio
+    from ..domain.rounding import round_value
+    from ..domain.standards import get_pollutant
+
+    def _exceedance_precision(row):
+        meta = get_pollutant(row.pollutant)
+        return int(meta["precision"]) if meta else 2
+
+    def _formatted_value(row):
+        precision = _exceedance_precision(row)
+        return ("%." + str(precision) + "f") % round_value(row.value, precision)
+
+    def _formatted_limit(row):
+        precision = _exceedance_precision(row)
+        return ("%." + str(precision) + "f") % round_value(row.limit_value, precision)
 
     rows = exceedance_service.exceedance_query(request.args).limit(
         current_app.config["MAX_EXPORT_ROWS"]
@@ -49,10 +63,14 @@ def export_exceedances():
     columns = [
         ("站点编码", lambda row: row.station.code if row.station else ""),
         ("站点名称", lambda row: row.station.name if row.station else ""),
+        # 超标导出沿用因子代码(与列表导出的因子列口径一致由测试固定)
         ("监测因子", "pollutant"),
-        ("监测值", "value"),
-        ("限值", "limit_value"),
-        ("超标倍数", "exceed_ratio"),
+        ("数据周期", lambda row: PERIOD_LABELS.get(row.period, row.period)),
+        ("监测值", _formatted_value),
+        ("单位", lambda row: (get_pollutant(row.pollutant) or {}).get("unit", "")),
+        ("限值", _formatted_limit),
+        ("超标倍数", formatted_ratio),
+        ("判定标准", lambda row: row.standard_label or ""),
         ("超标等级", lambda row: EXCEEDANCE_LEVEL_LABELS.get(row.level, row.level)),
         ("标注状态", lambda row: EXCEEDANCE_STATUS_LABELS.get(row.status, row.status)),
         ("监测时间", lambda row: row.measured_at.strftime("%Y-%m-%d %H:%M")),

@@ -22,7 +22,11 @@ class Measurement(TimestampMixin, db.Model):
     period = db.Column(db.String(16), nullable=False, default="hourly")
     value = db.Column(db.Float, nullable=False)
     unit = db.Column(db.String(16))
+    precision = db.Column(db.Integer)
     limit_value = db.Column(db.Float)
+    # 判定时使用的标准口径与限值快照: 标准修订后历史记录仍按当时口径展示/解释
+    standard_key = db.Column(db.String(48))
+    standard_label = db.Column(db.String(96))
     exceed_ratio = db.Column(db.Float)
     is_exceeded = db.Column(db.Boolean, nullable=False, default=False, index=True)
     measured_at = db.Column(db.DateTime, nullable=False, index=True)
@@ -53,7 +57,10 @@ class Measurement(TimestampMixin, db.Model):
             "period_label": label_of(PERIOD_LABELS, self.period),
             "value": self.value,
             "unit": self.unit,
+            "precision": self.precision,
             "limit_value": self.limit_value,
+            "standard_key": self.standard_key,
+            "standard_label": self.standard_label,
             "exceed_ratio": self.exceed_ratio,
             "is_exceeded": bool(self.is_exceeded),
             "measured_at": iso(self.measured_at),

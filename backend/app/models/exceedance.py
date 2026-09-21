@@ -26,6 +26,9 @@ class Exceedance(TimestampMixin, db.Model):
     period = db.Column(db.String(16), nullable=False, default="hourly")
     value = db.Column(db.Float, nullable=False)
     limit_value = db.Column(db.Float, nullable=False)
+    # 判定当时的标准口径快照, 与 Measurement 一致; 限值口径调整后不被改写
+    standard_key = db.Column(db.String(48))
+    standard_label = db.Column(db.String(96))
     exceed_ratio = db.Column(db.Float, nullable=False)
     level = db.Column(db.String(16), nullable=False, default="light", index=True)
     status = db.Column(db.String(16), nullable=False, default="pending", index=True)
@@ -48,6 +51,9 @@ class Exceedance(TimestampMixin, db.Model):
             "period_label": label_of(PERIOD_LABELS, self.period),
             "value": self.value,
             "limit_value": self.limit_value,
+            "precision": self.measurement.precision if self.measurement else None,
+            "standard_key": self.standard_key,
+            "standard_label": self.standard_label,
             "exceed_ratio": self.exceed_ratio,
             "level": self.level,
             "level_label": label_of(EXCEEDANCE_LEVEL_LABELS, self.level),

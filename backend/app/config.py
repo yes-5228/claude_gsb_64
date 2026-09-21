@@ -31,6 +31,7 @@ class BaseConfig:
 
     CORS_ORIGINS = _as_list(os.getenv("CORS_ORIGINS"), ["*"])
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Shanghai")
+    # 仅作兼容字段, 实际标准口径以 domain/standards.py 的当前标准为准
     LIMIT_POLICY = "GB 3095-2012 环境空气质量标准(二级)"
 
     DEFAULT_PAGE_SIZE = 20

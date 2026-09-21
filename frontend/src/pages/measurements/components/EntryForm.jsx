@@ -6,7 +6,8 @@ import { Alert, Loading } from '../../../components/common/Feedback.jsx'
 import Tag from '../../../components/common/Tag.jsx'
 import { useToast } from '../../../components/common/ToastProvider.jsx'
 import { usePollutantMeta, useStationOptions } from '../../../hooks/useOptions.js'
-import { formatNumber, toDateTimeInput } from '../../../utils/format.js'
+import { formatFixed } from '../../../utils/pollutants.js'
+import { toDateTimeInput } from '../../../utils/format.js'
 
 const PERIODS = [
   { value: 'hourly', label: '小时均值' },
@@ -50,8 +51,11 @@ export default function EntryForm({ onPreview, onSubmitted }) {
   const limitHint = useCallback(
     (pollutant) => {
       const limit = pollutant.limits?.[form.period]
-      if (limit === null || limit === undefined) return '该周期未设限值, 仅记录数值'
-      return `限值 ${formatNumber(limit)} ${pollutant.unit}`
+      if (limit === null || limit === undefined) {
+        return `${pollutant.unit} · 该周期未设限值, 仅记录数值`
+      }
+      // 限值与录入精度一致, 取整后再比较
+      return `限值 ${formatFixed(limit, pollutant.precision ?? 2)} ${pollutant.unit} · 保留 ${pollutant.precision ?? 2} 位小数(四舍五入)`
     },
     [form.period]
   )
@@ -234,12 +238,12 @@ export default function EntryForm({ onPreview, onSubmitted }) {
                     <div className="inline" style={{ flexWrap: 'nowrap' }}>
                       <Input
                         type="number"
-                        step="0.01"
+                        step={(pollutant.precision ?? 2) === 2 ? '0.01' : '0.1'}
                         min="0"
                         value={values[pollutant.code] ?? ''}
                         onChange={setValue(pollutant.code)}
                         invalid={Boolean(errors[pollutant.code])}
-                        placeholder="--"
+                        placeholder={(pollutant.precision ?? 2) === 2 ? '0.00' : '0.0'}
                       />
                       {evaluation?.exceeded ? <Tag tone="danger">超标</Tag> : null}
                       {evaluation && !evaluation.exceeded && evaluation.applicable ? (

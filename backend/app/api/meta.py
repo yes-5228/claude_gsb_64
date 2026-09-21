@@ -12,7 +12,7 @@ from ..domain.constants import (
     STATION_TYPE_LABELS,
     options_payload,
 )
-from ..domain.standards import POLLUTANTS
+from ..domain.standards import POLLUTANTS, STANDARDS, current_standard
 from ..extensions import db
 from ..services import exceedance_service, query_service, station_service
 
@@ -31,15 +31,40 @@ def health():
         "database": database,
         "time": datetime.now().isoformat(timespec="seconds"),
         "timezone": current_app.config["TIMEZONE"],
-        "limit_policy": current_app.config["LIMIT_POLICY"],
+        "limit_policy": current_standard()["label"],
+        "standard": {
+            "key": current_standard()["key"],
+            "code": current_standard()["code"],
+            "name": current_standard()["name"],
+            "level": current_standard()["level"],
+            "label": current_standard()["label"],
+        },
     }
 
 
 @bp.get("/pollutants")
 def pollutants():
+    standard = current_standard()
     return {
         "items": list(POLLUTANTS.values()),
-        "policy": current_app.config["LIMIT_POLICY"],
+        "policy": standard["label"],
+        "standard": {
+            "key": standard["key"],
+            "code": standard["code"],
+            "name": standard["name"],
+            "level": standard["level"],
+            "label": standard["label"],
+        },
+        "standards": [
+            {"key": item["key"], "code": item["code"], "name": item["name"],
+             "level": item["level"], "label": item["label"],
+             "active": item["key"] == standard["key"]}
+            for item in STANDARDS.values()
+        ],
+        "rounding_rule": {
+            "mode": "ROUND_HALF_UP",
+            "description": "监测值按各因子精度四舍五入后再与限值严格比较(>限值判超标)",
+        },
         "periods": [{"value": key, "label": label} for key, label in PERIOD_LABELS.items()],
     }
 

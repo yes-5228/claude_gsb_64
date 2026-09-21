@@ -152,6 +152,66 @@ def reset_database():
     db.create_all()
 
 
+def ensure_schema_columns(app):
+    """Idempotently add columns introduced after the first release.
+
+    老版本数据库缺少 precision / standard_key / standard_label 列; 这里做轻量
+    ALTER TABLE 补齐(SQLite 与 PostgreSQL 均支持 ADD COLUMN), 并按因子元数据
+    回填单位/精度/标准口径。已有行的 limit_value 快照保持不变。
+    """
+    from sqlalchemy import inspect, text
+
+    from .domain.standards import POLLUTANTS, current_standard
+
+    inspector = inspect(db.engine)
+    existing_tables = set(inspector.get_table_names())
+
+    additions = {
+        "measurements": [
+            ("precision", "INTEGER"),
+            ("standard_key", "VARCHAR(48)"),
+            ("standard_label", "VARCHAR(96)"),
+        ],
+        "exceedances": [
+            ("standard_key", "VARCHAR(48)"),
+            ("standard_label", "VARCHAR(96)"),
+        ],
+    }
+    with db.engine.begin() as connection:
+        for table, columns in additions.items():
+            if table not in existing_tables:
+                continue
+            present = {column["name"] for column in inspector.get_columns(table)}
+            for name, ddl_type in columns:
+                if name not in present:
+                    connection.execute(text("ALTER TABLE %s ADD COLUMN %s %s" % (table, name, ddl_type)))
+
+        if "measurements" in existing_tables:
+            standard = current_standard()
+            for code, meta in POLLUTANTS.items():
+                connection.execute(
+                    text(
+                        "UPDATE measurements SET unit = :unit, precision = :precision, "
+                        "standard_key = :key, standard_label = :label "
+                        "WHERE pollutant = :code AND (unit IS NULL OR standard_key IS NULL)"
+                    ),
+                    {
+                        "unit": meta["unit"],
+                        "precision": int(meta["precision"]),
+                        "key": standard["key"],
+                        "label": standard["label"],
+                        "code": code,
+                    },
+                )
+            connection.execute(
+                text(
+                    "UPDATE exceedances SET standard_key = :key, standard_label = :label "
+                    "WHERE standard_key IS NULL"
+                ),
+                {"key": standard["key"], "label": standard["label"]},
+            )
+
+
 def ensure_bootstrap(app):
     """Create tables / seed demo data at startup when enabled by config."""
     auto_init = app.config.get("AUTO_INIT_DB")
@@ -162,6 +222,7 @@ def ensure_bootstrap(app):
         try:
             if auto_init:
                 db.create_all()
+                ensure_schema_columns(app)
             if auto_seed and db.session.query(Station.id).first() is None:
                 app.logger.info("seeding demo data ...")
                 seed_demo_data()

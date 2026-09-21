@@ -9,7 +9,7 @@ import { useToast } from '../../components/common/ToastProvider.jsx'
 import { useAsyncData } from '../../hooks/useAsyncData.js'
 import { useListQuery } from '../../hooks/useListQuery.js'
 import { saveBlob } from '../../utils/download.js'
-import { formatDateTime, formatNumber, formatPercent } from '../../utils/format.js'
+import { formatDateTime, formatPercent } from '../../utils/format.js'
 import QueryFilters from './components/QueryFilters.jsx'
 import QueryResultTable from './components/QueryResultTable.jsx'
 import StatisticsPanel from './components/StatisticsPanel.jsx'
@@ -80,7 +80,26 @@ export default function QueryPage() {
           tone={summary?.exceeded_count ? 'danger' : undefined}
           foot={summary ? `超标率 ${formatPercent(summary.exceed_rate)}` : ''}
         />
-        <StatCard label="平均浓度" value={summary ? formatNumber(summary.avg_value) : '-'} foot="按当前筛选范围计算" />
+        <StatCard
+          label="平均浓度"
+          value={
+            summary
+              ? summary.mixed_units
+                ? '—'
+                : summary.avg_value === null || summary.avg_value === undefined
+                  ? '-'
+                  : summary.avg_value
+              : '-'
+          }
+          unit={summary && !summary.mixed_units ? summary.avg_unit || '' : ''}
+          foot={
+            summary
+              ? summary.mixed_units
+                ? '筛选结果同时含 μg/m³ 与 mg/m³, 不做混合平均'
+                : '按当前筛选范围计算'
+              : ''
+          }
+        />
         <StatCard
           label="时间范围"
           value={summary ? formatDateTime(summary.first_measured_at).slice(5, 10) : '-'}

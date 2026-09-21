@@ -2,7 +2,7 @@ import { SectionCard } from '../../../components/common/Card.jsx'
 import { Alert, EmptyState, Loading } from '../../../components/common/Feedback.jsx'
 import BarChart from '../../../components/common/BarChart.jsx'
 import { Field, Select } from '../../../components/common/FormField.jsx'
-import { formatNumber, formatPercent } from '../../../utils/format.js'
+import { formatPercent } from '../../../utils/format.js'
 
 const GROUP_OPTIONS = [
   { value: 'pollutant', label: '按监测因子' },
@@ -22,9 +22,23 @@ const METRIC_OPTIONS = [
   { value: 'sum', label: '合计' }
 ]
 
+function MetricValue({ item }) {
+  // 后端已按因子精度取整, 这里直接展示; 不可比(跨单位)分组显示占位
+  if (item.value === null || item.value === undefined) {
+    return <span className="muted" title={`包含单位: ${(item.units || []).join('、')}`}>— 不可混算</span>
+  }
+  return (
+    <>
+      {item.value}
+      {item.unit ? <span className="muted small"> {item.unit}</span> : null}
+    </>
+  )
+}
+
 export default function StatisticsPanel({ params, onChange, data, loading, error, onRun }) {
   const items = data?.items ?? []
   const isCount = params.metric === 'count'
+  const hasIncomparable = items.some((item) => item.comparable === false)
 
   return (
     <SectionCard
@@ -54,6 +68,12 @@ export default function StatisticsPanel({ params, onChange, data, loading, error
     >
       <div className="stack">
         {error ? <Alert tone="error">{error.message}</Alert> : null}
+        {hasIncomparable && !isCount ? (
+          <Alert tone="warning">
+            部分分组同时包含 μg/m³ 与 mg/m³ 的因子, 浓度单位不同不能直接比较或平均,
+            这些分组不输出统计值; 如需对比请按“监测因子”分组或在筛选中限定单一因子。
+          </Alert>
+        ) : null}
         {loading && items.length === 0 ? <Loading text="正在统计..." /> : null}
         {!loading && items.length === 0 && !error ? (
           <EmptyState text="点击“执行统计”查看聚合结果" icon="📈" />
@@ -76,7 +96,9 @@ export default function StatisticsPanel({ params, onChange, data, loading, error
                   {items.map((item) => (
                     <tr key={item.key}>
                       <td>{item.label}</td>
-                      <td className="text-right strong">{formatNumber(item.value)}</td>
+                      <td className="text-right strong">
+                        <MetricValue item={item} />
+                      </td>
                       <td className="text-right">{item.count}</td>
                       <td className="text-right danger-text">{item.exceeded_count}</td>
                       <td className="text-right">{formatPercent(item.exceed_rate)}</td>
@@ -85,6 +107,12 @@ export default function StatisticsPanel({ params, onChange, data, loading, error
                 </tbody>
               </table>
             </div>
+            {!isCount ? (
+              <p className="small muted">
+                说明: 各因子按自身单位参与统计, μg/m³ 与 mg/m³ 不做跨单位换算;
+                限值判定以记录保存时的标准口径与限值快照为准。
+              </p>
+            ) : null}
           </>
         ) : null}
       </div>
